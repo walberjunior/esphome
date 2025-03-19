@@ -1,8 +1,10 @@
 sensor:
+########## Replace with the temperature sensor you want to monitor ##########
   - platform: homeassistant
     name: "Temperature Sensor From Home Assistant"
     entity_id: sensor.proxmox_server_ryzen_7_5700u_temperature
     internal: false
+########## Replace with the temperature sensor you want to monitor ##########
     on_value:
       then:
         - lambda: |-
@@ -29,8 +31,6 @@ sensor:
               // Execute the fan speed update
               call.perform();
             }
-
-
 
   # RPM Signal from Fan
   - platform: pulse_counter
