@@ -1,0 +1,136 @@
+sensor:
+  - platform: homeassistant
+    name: "Temperature Sensor From Home Assistant"
+    entity_id: sensor.proxmox_server_ryzen_7_5700u_temperature
+    internal: false
+    on_value:
+      then:
+        - lambda: |-
+            // Check if the fan is in AUTO mode
+            if (id(fan_mode).state == "AUTO") {
+              // Create a call to update the fan speed
+              auto call = id(fan_speed).make_call();
+                
+                // Read the current temperature
+                int temp = ceil(x);
+                
+                // Calculate the fan speed based on the temperature
+                int speed = ceil(id(speed_min).state + ((temp - id(temp_min).state) * (id(speed_max).state - id(speed_min).state) / (id(temp_max).state - id(temp_min).state)));
+                
+                // Ensure the speed is within the allowed range
+                
+                speed = clamp(speed, int (id(speed_min).state), int (id(speed_max).state)); //  If you are using  framework: type: esp-idf
+                
+                //speed = constrain(speed, id(speed_min).state, id(speed_max).state); // If you are using  framework: type: arduino
+                
+                // If temperature is within limits, use calculated speed, otherwise set max speed
+                call.set_value(temp <= id(temp_max).state ? speed : id(speed_max).state);
+              
+              // Execute the fan speed update
+              call.perform();
+            }
+
+
+
+  # RPM Signal from Fan
+  - platform: pulse_counter
+    name: Fan RPM
+    id: fan_rpm
+    pin:
+      number: GPIO26 
+      inverted: true
+      mode:
+        input: true
+        pullup: true
+    accuracy_decimals: 0
+    unit_of_measurement: 'RPM'
+    update_interval: 5s
+    filters:
+      - multiply: 0.5
+      - or:
+        - throttle: 60s
+        - delta: 50.0
+      - lambda: |-
+         if (x < 3100) return x;
+         else return {};
+
+output:
+  - platform: ledc
+    pin: GPIO18 
+    frequency: 25000 Hz
+    id: pwm_output
+
+number:
+  - platform: template
+    name: "Fan Speed"
+    unit_of_measurement: '%'
+    id: fan_speed
+    icon: mdi:fan
+    internal: false
+    max_value: 100
+    min_value: 0 
+    restore_value: false
+    initial_value: 100
+    step: 1
+    optimistic: true
+    mode: slider
+    on_value:
+      then:
+        - output.set_level:
+            id: pwm_output
+            level: !lambda "return x/100;"
+
+  - platform: template
+    name: "Speed Min"
+    id: speed_min
+    icon: mdi:fan-chevron-down
+    optimistic: true
+    initial_value: 25 
+    min_value: 20
+    max_value: 100
+    step: 1
+    restore_value: true
+
+  - platform: template
+    name: "Speed Max"
+    id: speed_max
+    icon: mdi:fan-chevron-up
+    optimistic: true
+    initial_value: 100 
+    min_value: 0
+    max_value: 100
+    step: 1
+    restore_value: true
+
+  - platform: template
+    name: "Temp Min"
+    id: temp_min
+    icon: mdi:thermometer-low
+    optimistic: true
+    initial_value: 55 
+    min_value: 0
+    max_value: 100
+    step: 1
+    restore_value: true
+
+  - platform: template
+    name: "Temp Max"
+    id: temp_max
+    icon: mdi:thermometer-high
+    optimistic: true
+    initial_value: 85 
+    min_value: 0
+    max_value: 100
+    step: 1
+    restore_value: true
+
+select:
+  - platform: template
+    name: Fan Mode
+    id: fan_mode
+    icon: mdi:fan-auto
+    options:
+     - "AUTO"
+     - "Manual"
+    initial_option: "AUTO"
+    optimistic: true
